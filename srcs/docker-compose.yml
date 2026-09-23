@@ -1,5 +1,7 @@
 services :
     mariadb:
+      restart: on-failure
+      image: inception-mariadb:1.0
       build: ./requirements/mariadb
       env_file:
         - .env
@@ -8,12 +10,36 @@ services :
         - db_root_password
       volumes:
         - mariadb_data:/var/lib/mysql
+      networks:
+        - inception
 
     wordpress:
+      restart: on-failure
+      image: inception-wordpress:1.0
       build: ./requirements/wordpress
+      env_file:
+        - .env
+      secrets:
+        - db_password
+        - wp_admin_password
+        - wp_user_password
+      volumes:
+        - wordpress_data:/var/www/html
+      networks:
+        - inception
 
     nginx:
+      restart: on-failure
+      image: inception-nginx:1.0
       build: ./requirements/nginx
+      env_file:
+        - .env
+      volumes:
+        - wordpress_data:/var/www/html:ro #read only
+      ports:
+        - "443:443"
+      networks:
+        - inception
 
 volumes:
     mariadb_data:
@@ -22,6 +48,12 @@ volumes:
         type: none
         o: bind
         device: /home/reda/data/mariadb
+    wordpress_data:
+      driver: local
+      driver_opts:
+        type: none
+        o: bind
+        device: /home/reda/data/wordpress
 
 secrets:
     db_password:
@@ -29,3 +61,15 @@ secrets:
 
     db_root_password:
       file: ../secrets/db_root_password.txt
+
+    wp_admin_password:
+      file: ../secrets/wp_admin_password.txt
+
+    wp_user_password:
+      file: ../secrets/wp_user_password.txt
+
+networks:
+    inception:
+
+#to test presistence run : docker compose -f srcs/docker-compose.yml down |||| docker compose -f srcs/docker-compose.yml up -d ||| docker compose -f srcs/docker-compose.yml ps ||| curl -k https://reda.42.fr ||| it should return html
+#to test database and users survived : docker compose -f srcs/docker-compose.yml exec wordpress wp user list --path=/var/www/html --allow-root
