@@ -25,7 +25,8 @@ define('DB_COLLATE', '');
 \$table_prefix = 'wp_';
 
 define('WP_DEBUG', false);
-
+define('WP_REDIS_HOST', 'redis');
+define('WP_REDIS_PORT', 6379);
 if ( ! defined('ABSPATH') ) {
     define('ABSPATH', __DIR__ . '/');
 }
@@ -68,6 +69,20 @@ if ! wp core is-installed --path=/var/www/html --allow-root; then
         --role=subscriber \
         --path=/var/www/html \
         --allow-root
+fi
+
+echo "Configuring Redis..."
+
+if ! wp plugin is-installed redis-cache --path=/var/www/html --allow-root; then
+    wp plugin install redis-cache --path=/var/www/html --allow-root
+fi
+
+if ! wp plugin is-active redis-cache --path=/var/www/html --allow-root; then
+    wp plugin activate redis-cache --path=/var/www/html --allow-root
+fi
+
+if [ ! -f /var/www/html/wp-content/object-cache.php ]; then
+    wp redis enable --path=/var/www/html --allow-root
 fi
 
 exec php-fpm8.2 -F

@@ -15,7 +15,9 @@ RUN apt-get update && apt-get install -y \
     php-xml \
     #zip support
     php-zip \
-    wget \  
+    wget \
+    #redis support
+    php-redis \
     mariadb-client
 
 #download wp cli for commands line

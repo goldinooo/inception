@@ -40,6 +40,13 @@ services :
         - "443:443"
       networks:
         - inception
+        
+    redis:
+      image: inception-redis:1.0
+      restart: on-failure
+      build: ./requirements/bonus/redis
+      networks:
+        - inception
 
 volumes:
     mariadb_data:
