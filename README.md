@@ -1,1465 +1,1049 @@
-# Docker Fundamentals
+*This project has been created as part of the 42 curriculum by retahri.*
 
-A simple reference for understanding Docker
+# Inception
 
----
+## Description
 
-## 1. The Big Picture
+Inception is a Docker infrastructure project from the 42 curriculum.
 
-Docker packages an application and its environment so it can run consistently on different machines.
+The goal is to build a small web infrastructure using Docker Compose, with each service running inside its own container.
 
-The basic workflow is:
+The mandatory infrastructure contains:
 
-```text
-Dockerfile
-    ↓
-docker build
-    ↓
-Image
-    ↓
-docker run
-    ↓
-Container
-```
+* **NGINX** — HTTPS entry point and web server.
+* **WordPress** — website and PHP application.
+* **MariaDB** — WordPress database.
 
-### Image
+This project also contains several bonus services:
 
-An **image** is a reusable template/blueprint.
+* **Redis** — WordPress object cache.
+* **FTP** — access to the WordPress files.
+* **Adminer** — web interface for MariaDB.
+* **Static Portfolio** — a simple terminal-style portfolio.
+* **Backup** — periodically creates compressed backups of WordPress files.
 
-It contains things such as:
-
-* Operating system files
-* Installed packages
-* Application files
-* Configuration
-* Default commands
-
-Example:
-
-```text
-Debian + NGINX + configuration
-        ↓
-      Image
-```
-
-### Container
-
-A **container** is an actual instance created from an image.
-
-```text
-Image
-  ↓
-Container 1
-Container 2
-Container 3
-```
-
-One image can create many containers.
+The containers communicate through a Docker network, while persistent data is stored in Docker volumes backed by directories on the host.
 
 ---
 
-# 2. Dockerfile
-
-A `Dockerfile` describes how to build an image.
-
-Example:
-
-```dockerfile
-FROM debian:bookworm
-
-RUN apt-get update
-
-WORKDIR /app
-
-COPY hello.txt .
-
-ENV NAME=Reda
-
-EXPOSE 80
-
-CMD ["echo", "hello"]
-```
-
----
-
-## 3. `FROM`
-
-Defines the base image.
-
-```dockerfile
-FROM debian:bookworm
-```
-
-Meaning:
-
-> Start building my image from Debian Bookworm.
-
-Think:
+## Project Structure
 
 ```text
-Debian
-   ↓
-my custom image
-```
-
-For Inception, images must be based on the allowed stable **Alpine or Debian** base images.
-
----
-
-# 4. `RUN`
-
-Executes a command **during image building**.
-
-```dockerfile
-RUN apt-get update
-```
-
-Important:
-
-```text
-docker build
-     ↓
-RUN executes
-```
-
-NOT:
-
-```text
-docker run
-```
-
-Example:
-
-```dockerfile
-RUN apt-get update
-RUN apt-get install -y nginx
-```
-
-NGINX is installed while the image is being built.
-
-### `RUN` vs `CMD`
-
-```dockerfile
-RUN echo "A"
-CMD ["echo", "B"]
-```
-
-During:
-
-```bash
-docker build -t my-image .
-```
-
-you get:
-
-```text
-A
-```
-
-When running:
-
-```bash
-docker run my-image
-```
-
-you get:
-
-```text
-B
-```
-
-So:
-
-```text
-RUN → build time
-CMD → container startup
-```
-
----
-
-# 5. `COPY`
-
-Copies files from your **build context** into the image.
-
-Example:
-
-```text
-project/
-├── Dockerfile
-└── hello.txt
-```
-
-Dockerfile:
-
-```dockerfile
-COPY hello.txt /hello.txt
-```
-
-After building:
-
-```text
-container
-└── /hello.txt
-```
-
-The original file exists on your computer:
-
-```text
-project/hello.txt
-```
-
-The copied file exists inside the image/container:
-
-```text
-/hello.txt
-```
-
-### Important
-
-`COPY` happens during:
-
-```bash
-docker build
-```
-
-If you delete the original `hello.txt` from your computer afterward, the already-built image still has its copied version.
-
----
-
-# 6. `WORKDIR`
-
-Sets the current working directory **inside the image/container**.
-
-```dockerfile
-WORKDIR /app
-```
-
-If `/app` doesn't exist, Docker creates it.
-
-Example:
-
-```dockerfile
-WORKDIR /app
-COPY hello.txt .
-```
-
-Because `.` means the current directory:
-
-```text
-/app/hello.txt
-```
-
-The same as:
-
-```dockerfile
-COPY hello.txt /app/hello.txt
-```
-
-You can check the current directory inside a container with:
-
-```bash
-pwd
-```
-
----
-
-# 7. `ENV`
-
-Defines an environment variable.
-
-```dockerfile
-ENV PORT=8080
-```
-
-Inside the container:
-
-```bash
-echo $PORT
-```
-
-outputs:
-
-```text
-8080
-```
-
-Think of it similarly to:
-
-```bash
-export PORT=8080
-```
-
-in a shell.
-
-### Important distinction
-
-A `.env` file is not the same thing as Dockerfile `ENV`.
-
-`.env`:
-
-```text
-PORT=8080
-DOMAIN=example.com
-```
-
-is a file containing values.
-
-`ENV`:
-
-```dockerfile
-ENV PORT=8080
-```
-
-puts the variable into the image/container environment.
-
-For Inception, `.env` will be used by Docker Compose for configuration.
-
-### Security
-
-Do **not** put passwords directly into Dockerfiles.
-
-For Inception, credentials should be handled using the required environment/secrets mechanism.
-
----
-
-# 8. `EXPOSE`
-
-Documents which port the application inside the container is expected to use.
-
-```dockerfile
-EXPOSE 80
-```
-
-It means:
-
-> This container expects an application to listen on port 80.
-
-It does **not** publish the port to your computer.
-
-### `EXPOSE` vs `-p`
-
-```dockerfile
-EXPOSE 80
-```
-
-is different from:
-
-```bash
-docker run -p 8080:80 my-image
-```
-
-`EXPOSE`:
-
-```text
-"I use port 80."
-```
-
-`-p`:
-
-```text
-"Connect my computer's port 8080 to the container's port 80."
-```
-
----
-
-# 9. Publishing Ports with `-p`
-
-Syntax:
-
-```bash
--p HOST_PORT:CONTAINER_PORT
-```
-
-Example:
-
-```bash
-docker run -p 8080:80 my-image
-```
-
-Means:
-
-```text
-Your PC                    Container
-
-localhost:8080  ─────────► :80
-```
-
-Another example:
-
-```bash
-docker run -p 5000:3000 my-image
-```
-
-means:
-
-```text
-localhost:5000 ─────────► container:3000
-```
-
-Same port:
-
-```bash
-docker run -p 443:443 my-image
-```
-
-means:
-
-```text
-localhost:443 ──────────► container:443
-```
-
-### Mental model
-
-You are simply **routing one port to another port**.
-
-```text
--p PC_PORT:CONTAINER_PORT
-```
-
----
-
-# 10. `CMD`
-
-Defines the default command executed when the container starts.
-
-```dockerfile
-CMD ["echo", "hello"]
-```
-
-Running:
-
-```bash
-docker run my-image
-```
-
-runs:
-
-```text
-echo hello
-```
-
-### Important
-
-`CMD` happens when the container starts, not when the image is built.
-
-Also:
-
-> Only the last `CMD` in a Dockerfile stage is used.
-
-This is wrong:
-
-```dockerfile
-CMD ["echo", "father"]
-CMD ["echo", "hello"]
-```
-
-Only the second one is effective.
-
----
-
-# 11. Why Containers Stop
-
-A container normally lives as long as its **main process** is running.
-
-Example:
-
-```dockerfile
-CMD ["echo", "hello"]
-```
-
-The process:
-
-```text
-echo hello
-```
-
-runs:
-
-```text
-print hello
-    ↓
-process finishes
-    ↓
-container stops
-```
-
-This is normal.
-
-A stopped container still exists:
-
-```bash
-docker ps
-```
-
-shows running containers.
-
-```bash
-docker ps -a
-```
-
-shows **all containers**, including stopped ones.
-
----
-
-# 12. `docker run -it`
-
-`-it` does not mean "keep the container alive forever."
-
-It combines:
-
-```text
--i → interactive input
--t → pseudo-terminal
-```
-
-For example:
-
-```bash
-docker run -it my-image bash
-```
-
-starts Bash inside the container.
-
-Now you can:
-
-```bash
-pwd
-ls
-cat /hello.txt
-```
-
-and explore the container.
-
-When you type:
-
-```bash
-exit
-```
-
-Bash ends, so the container stops.
-
-### Important
-
-The command after the image overrides the default `CMD`.
-
-For example:
-
-```dockerfile
-CMD ["echo", "hello"]
-```
-
-Normally:
-
-```bash
-docker run my-image
-```
-
-runs:
-
-```text
-echo hello
-```
-
-But:
-
-```bash
-docker run -it my-image bash
-```
-
-runs:
-
-```text
-bash
-```
-
-instead.
-
----
-
-# 13. `ENTRYPOINT`
-
-Defines the main program the container is designed to run.
-
-Example:
-
-```dockerfile
-ENTRYPOINT ["echo"]
-```
-
-Then:
-
-```bash
-docker run my-image hello
-```
-
-effectively runs:
-
-```bash
-echo hello
-```
-
-A useful mental model:
-
-```text
-ENTRYPOINT = main program
-CMD        = default arguments
-```
-
-Example:
-
-```dockerfile
-ENTRYPOINT ["python3"]
-CMD ["app.py"]
-```
-
-Running:
-
-```bash
-docker run my-image
-```
-
-means:
-
-```text
-python3 app.py
-```
-
-Running:
-
-```bash
-docker run my-image test.py
-```
-
-means:
-
-```text
-python3 test.py
-```
-
-### ENTRYPOINT does NOT:
-
-* expose ports
-* connect the container to the internet
-* select the Python version
-
-The installed software/version comes from the image.
-
-For example:
-
-```dockerfile
-FROM debian:bookworm
-
-RUN apt-get update && apt-get install -y python3
-```
-
-The Python version is determined by what was installed in the image.
-
----
-
-# 14. Useful Docker Commands
-
-### Build an image
-
-```bash
-docker build -t my-image .
-```
-
-`-t` means **tag/name the image**.
-
-`.` means:
-
-> Use the current directory as the build context.
-
----
-
-### Create and start a new container
-
-```bash
-docker run my-image
-```
-
-Every `docker run` normally creates a **new container**.
-
----
-
-### Start an existing stopped container
-
-```bash
-docker start my-container
-```
-
-Interactive:
-
-```bash
-docker start -i my-container
-```
-
----
-
-### List running containers
-
-```bash
-docker ps
-```
-
-### List all containers
-
-```bash
-docker ps -a
-```
-
----
-
-### Remove a container
-
-```bash
-docker rm my-container
-```
-
-Force removal:
-
-```bash
-docker rm -f my-container
-```
-
----
-
-### Remove an image
-
-```bash
-docker rmi my-image
-```
-
----
-
-# 15. Container Names
-
-Container names must be unique.
-
-If:
-
-```bash
-docker run --name anothertest my-image
-```
-
-creates a container named:
-
-```text
-anothertest
-```
-
-and you stop it, the name is still taken.
-
-Trying:
-
-```bash
-docker run --name anothertest my-image
-```
-
-again gives a name conflict.
-
-You can remove the old container:
-
-```bash
-docker rm anothertest
-```
-
-or use another name.
-
----
-
-# 16. Docker Networks
-
-Containers normally have their own network environments.
-
-Docker networks allow containers to communicate with each other.
-
-Create one manually:
-
-```bash
-docker network create my-network
-```
-
-Then:
-
-```bash
-docker run --network my-network ...
-docker run --network my-network ...
-```
-
-Now the containers can communicate through that network.
-
-Think:
-
-```text
-              Docker network
-        ┌────────────────────────┐
-        │                        │
-        │ Container A ↔ Container B
-        │                        │
-        └────────────────────────┘
-```
-
-### Internal communication does NOT require `-p`
-
-If WordPress and MariaDB are on the same Docker network, WordPress does not need:
-
-```bash
--p 3306:3306
-```
-
-to communicate with MariaDB.
-
-`-p` is for publishing a container port to the host/outside world.
-
----
-
-# 17. `localhost` Inside a Container
-
-This is extremely important.
-
-Inside the WordPress container:
-
-```text
-localhost
-127.0.0.1
-```
-
-means:
-
-> **the WordPress container itself**
-
-It does NOT mean the MariaDB container.
-
-So:
-
-```text
-WordPress → localhost:3306
-```
-
-looks for MariaDB inside the WordPress container.
-
-Instead, Docker networking lets you use the other service/container's name:
-
-```text
-WordPress → mariadb:3306
-```
-
-Mental model:
-
-```text
-localhost → myself
-mariadb   → MariaDB container
-```
-
----
-
-# 18. Docker Compose
-
-Docker Compose lets you describe an entire multi-container application in one YAML file.
-
-Instead of manually creating:
-
-```text
-NGINX container
-WordPress container
-MariaDB container
-Network
-Volumes
-Ports
-Environment variables
-```
-
-you define them in:
-
-```text
-docker-compose.yml
-```
-
-For Inception:
-
-```text
-docker-compose.yml
+inception/
+├── Makefile
+├── README.md
+├── secrets/
+│   ├── db_password.txt
+│   ├── db_root_password.txt
+│   ├── ftp_password.txt
+│   ├── wp_admin_password.txt
+│   └── wp_user_password.txt
+│
+└── srcs/
+    ├── docker-compose.yml
+    ├── .env
+    │
+    └── requirements/
+        ├── mariadb/
+        ├── wordpress/
+        ├── nginx/
         │
-        ├── nginx
-        ├── wordpress
-        └── mariadb
+        └── bonus/
+            ├── redis/
+            ├── ftp/
+            ├── adminer/
+            ├── static/
+            └── backup/
 ```
 
 ---
 
-# 19. Compose `services`
-
-A service describes a container that Compose should create.
-
-Example:
-
-```yaml
-services:
-  nginx:
-    ...
-
-  wordpress:
-    ...
-
-  mariadb:
-    ...
-```
-
-Three services normally result in three dedicated containers:
+# Docker Architecture
 
 ```text
-services              containers
-
-nginx       ───────►  nginx
-wordpress   ───────►  wordpress
-mariadb     ───────►  mariadb
-```
-
----
-
-# 20. Compose `build`
-
-Example:
-
-```yaml
-services:
-  mariadb:
-    build: ./requirements/mariadb
-```
-
-This tells Compose:
-
-> Build the image using the Dockerfile located in this directory.
-
-Project:
-
-```text
-srcs/
-├── docker-compose.yml
-└── requirements/
-    └── mariadb/
-        └── Dockerfile
-```
-
-Compose looks in:
-
-```text
-./requirements/mariadb
-```
-
-for the Dockerfile.
-
----
-
-# 21. Compose `ports`
-
-Example:
-
-```yaml
-services:
-  nginx:
-    build: ./requirements/nginx
-    ports:
-      - "443:443"
-```
-
-This is similar to:
-
-```bash
-docker run -p 443:443 ...
-```
-
-It means:
-
-```text
-Host :443 ─────────► NGINX container :443
-```
-
-In Inception, NGINX is the public entry point and uses HTTPS.
-
----
-
-# 22. Compose `volumes`
-
-Containers are disposable.
-
-If a container stores important data directly inside itself:
-
-```text
-MariaDB container
-└── database
-```
-
-deleting the container can delete that data.
-
-A Docker volume stores the data separately:
-
-```text
-MariaDB container
-       │
-       ▼
-Docker volume
-       │
-       └── database data
-```
-
-Delete the container:
-
-```text
-Container ❌
-Volume    ✅
-Data      ✅
-```
-
----
-
-## Named volumes
-
-Example:
-
-```yaml
-services:
-  mariadb:
-    volumes:
-      - database:/var/lib/mysql
-
-volumes:
-  database:
-```
-
-Meaning:
-
-```text
-Docker volume: database
-        │
-        ▼
-MariaDB:
-/var/lib/mysql
-```
-
-The volume survives container deletion.
-
-A new container can mount the same volume and access the existing data.
-
----
-
-# 23. Named Volume vs Bind Mount
-
-### Named Docker volume
-
-```yaml
-volumes:
-  - database:/var/lib/mysql
-```
-
-Docker manages the volume.
-
-### Bind mount
-
-```yaml
-volumes:
-  - ./database:/var/lib/mysql
-```
-
-This directly maps a directory from your host.
-
-Conceptually:
-
-```text
-Named volume:
-
-Docker
-└── managed volume
-        ↓
-    container
-
-
-Bind mount:
-
-Your PC
-└── ./database
-        ↓
-    container
-```
-
-For Inception, the subject requires **Docker named volumes**, not simple bind mounts.
-
-The required data must ultimately be stored under:
-
-```text
-/home/<login>/data
-```
-
-on the host.
-
----
-
-# 24. Compose `networks`
-
-Compose can create and manage Docker networks.
-
-Example:
-
-```yaml
-services:
-  nginx:
-    networks:
-      - inception
-
-  wordpress:
-    networks:
-      - inception
-
-  mariadb:
-    networks:
-      - inception
-
-networks:
-  inception:
-```
-
-Now:
-
-```text
-             inception network
-        ┌──────────────────────────┐
-        │                          │
-        │ NGINX ↔ WordPress ↔ MariaDB
-        │                          │
-        └──────────────────────────┘
-```
-
-Containers can communicate using service names.
-
-For example:
-
-```text
-mariadb:3306
-```
-
----
-
-# 25. `ports` vs `networks`
-
-These are different concepts.
-
-### `ports`
-
-Used for communication between:
-
-```text
-Host ↔ Container
-```
-
-Example:
-
-```yaml
-ports:
-  - "443:443"
-```
-
-### `networks`
-
-Used mainly for:
-
-```text
-Container ↔ Container
-```
-
-Example:
-
-```text
-WordPress → mariadb:3306
-```
-
-You normally don't publish MariaDB's port to the host just so WordPress can access it.
-
----
-
-# 26. Inception Architecture
-
-The required architecture is approximately:
-
-```text
-                     Internet / Browser
+                         Browser
                             │
-                         HTTPS
-                          :443
+                         HTTPS :443
                             │
                             ▼
-                    ┌───────────────┐
-                    │     NGINX     │
-                    │    :443       │
-                    └───────┬───────┘
+                       ┌─────────┐
+                       │  NGINX  │
+                       └────┬────┘
                             │
-                            ▼
-                    ┌───────────────┐
-                    │   WordPress   │
-                    │   PHP-FPM     │
-                    └───────┬───────┘
-                            │
-                            ▼
-                    ┌───────────────┐
-                    │    MariaDB    │
-                    │    :3306      │
-                    └───────────────┘
+              ┌─────────────┼─────────────┐
+              │             │             │
+              ▼             ▼             ▼
+        ┌──────────┐  ┌──────────┐  ┌──────────┐
+        │ WordPress│  │  Adminer │  │  Static  │
+        └────┬─────┘  └────┬─────┘  └──────────┘
+             │              │
+             ▼              ▼
+        ┌──────────┐   MariaDB
+        │  Redis   │
+        └──────────┘
+
+        FTP ───────► WordPress volume
+
+        Backup ────► WordPress volume
 ```
 
-All three communicate through a Docker network.
+NGINX is the only service exposed through HTTPS on port `443`.
 
-Persistent data uses two named volumes:
+The other services communicate internally through Docker networking.
+
+---
+
+# Services
+
+## NGINX
+
+NGINX is the public entry point.
+
+It:
+
+* Provides HTTPS.
+* Uses TLS 1.2 and TLS 1.3.
+* Serves WordPress.
+* Sends PHP requests to WordPress/PHP-FPM.
+* Provides access to Adminer.
+* Proxies `/portfolio/` to the static website.
+
+---
+
+## WordPress
+
+WordPress runs with PHP-FPM.
+
+It:
+
+* Connects to MariaDB.
+* Uses Redis for object caching.
+* Stores its files in a persistent volume.
+* Creates the WordPress installation automatically during the first startup.
+
+PHP-FPM listens on port `9000` inside the Docker network.
+
+---
+
+## MariaDB
+
+MariaDB stores the WordPress database.
+
+It:
+
+* Runs inside its own container.
+* Is not exposed to the host.
+* Is accessible through the Docker network.
+* Stores its database files in a persistent volume.
+
+---
+
+## Redis
+
+Redis is used as the WordPress object cache.
+
+WordPress connects to:
 
 ```text
-MariaDB
-   │
-   ▼
-Database volume
-
-WordPress
-   │
-   ▼
-Website files volume
+redis:6379
 ```
 
----
-
-# 27. Inception Service Responsibilities
-
-### NGINX
-
-Responsible for:
-
-* Public entry point
-* HTTPS
-* TLS 1.2 / TLS 1.3
-* Receiving browser requests
-* Passing PHP requests toward WordPress/PHP-FPM
-
-Only NGINX should be exposed publicly on port `443`.
+Redis stores temporary/cache data in memory instead of replacing MariaDB as the main database.
 
 ---
 
-### WordPress + PHP-FPM
+## FTP
 
-Responsible for:
+The FTP service provides access to the WordPress files.
 
-* WordPress application
-* Executing PHP through PHP-FPM
-* Website files
+It uses:
 
-It should **not** contain NGINX.
+* Port `21` for FTP.
+* Ports `21100-21110` for passive FTP connections.
 
----
-
-### MariaDB
-
-Responsible for:
-
-* WordPress database
-* Database users
-* Database persistence
-
-It should **not** contain NGINX.
+The FTP service shares the WordPress volume.
 
 ---
 
-# 28. Why Separate Containers?
+## Adminer
 
-Not simply because of networking.
+Adminer provides a web interface for managing MariaDB.
 
-The main reason is **separation of responsibilities**:
+It is available through:
 
 ```text
-NGINX
-→ web server / HTTPS
-
-WordPress
-→ application / PHP
-
-MariaDB
-→ database
+https://reda.42.fr/adminer.php
 ```
 
-Each service has its own dedicated container.
-
-The Docker network allows those separate containers to communicate.
+Adminer connects to MariaDB through the Docker network.
 
 ---
 
-# 29. Important Inception Rules
+## Static Portfolio
+
+The static service contains a simple terminal-style portfolio.
+
+It is available at:
+
+```text
+https://reda.42.fr/portfolio/
+```
+
+Available commands include:
+
+```text
+help
+whoami
+portfolio
+skills
+contact
+clear
+```
+
+The static container does not expose a port to the host. NGINX proxies requests to it through the Docker network.
+
+---
+
+## Backup
+
+The backup service periodically creates compressed WordPress backups.
+
+The WordPress volume is mounted read-only:
+
+```text
+wordpress_data → /var/www/html:ro
+```
+
+The service creates files such as:
+
+```text
+wordpress-2026-09-25_23-18-45.tar.gz
+```
+
+Backups are stored in:
+
+```text
+/home/reda/data/backups/
+```
+
+This backup service currently backs up **WordPress files**, not the MariaDB database.
+
+---
+
+# Instructions
+
+## Requirements
 
 The project requires:
 
+* Docker
 * Docker Compose
-* One dedicated container per service
-* One Dockerfile per service
-* Dockerfiles based on Alpine or Debian
-* No ready-made WordPress/MariaDB/NGINX DockerHub images
-* NGINX with TLS 1.2 or TLS 1.3
-* WordPress with PHP-FPM
-* MariaDB
-* Two named volumes
-* Docker network
-* Containers restart on crashes
-* No `network: host`
-* No `--link`
-* No fake infinite loops such as `tail -f` or `sleep infinity`
-* NGINX is the only public entry point
-* Port `443`
-* Environment variables
-* `.env`
-* Secrets for sensitive credentials
-* No passwords hardcoded in Dockerfiles
-* No `latest` tag
-* WordPress must have an administrator and another user
-* Administrator username must not contain `admin` or `administrator`
-* Domain must point to the local machine's IP
+* Linux environment
+* A hosts entry for the project domain
 
----
-
-# 30. The Most Important Mental Models
-
-### Build vs Run
+The project uses:
 
 ```text
-docker build
-    ↓
-creates image
+reda.42.fr
+```
 
-docker run
-    ↓
-creates container from image
+For local testing, the domain should point to the machine running Docker.
+
+Example:
+
+```text
+127.0.0.1 reda.42.fr
 ```
 
 ---
 
-### RUN vs CMD
+## Build and Start
+
+From the project root:
+
+```bash
+make
+```
+
+This builds and starts the Docker Compose infrastructure.
+
+You can also use:
+
+```bash
+make build
+```
+
+to build the images.
+
+Then:
+
+```bash
+make up
+```
+
+to start the containers.
+
+---
+
+## Stop the Infrastructure
+
+```bash
+make down
+```
+
+This stops and removes the containers without removing the persistent data.
+
+---
+
+## Rebuild
+
+```bash
+make re
+```
+
+This stops the containers, rebuilds the images and starts the infrastructure again.
+
+---
+
+## Full Cleanup
+
+```bash
+make fclean
+```
+
+This removes the Compose containers and Docker volume objects.
+
+The project uses bind-backed volumes, so the actual persistent data is stored outside the Docker volume object.
+
+Use this command carefully.
+
+---
+
+# Accessing the Services
+
+## WordPress
 
 ```text
-RUN → build time
+https://reda.42.fr/
+```
 
-CMD → container startup
+## WordPress Admin
+
+```text
+https://reda.42.fr/wp-admin/
+```
+
+## Adminer
+
+```text
+https://reda.42.fr/adminer.php
+```
+
+## Portfolio
+
+```text
+https://reda.42.fr/portfolio/
+```
+
+## FTP
+
+```text
+ftp://reda.42.fr
+```
+
+FTP uses port:
+
+```text
+21
+```
+
+and passive ports:
+
+```text
+21100-21110
 ```
 
 ---
 
-### Image vs Container
+# Testing
+
+The following tests were used during development to verify that the infrastructure works correctly.
+
+## 1. Check Running Containers
+
+```bash
+docker ps
+```
+
+### Purpose
+
+Checks that the required containers are running.
+
+Expected services include:
 
 ```text
-Image     = blueprint
-Container = instance
+nginx
+wordpress
+mariadb
+redis
+ftp
+adminer
+static
+backup
 ```
 
 ---
 
-### `EXPOSE` vs `-p`
+## 2. Check All Containers
 
-```text
-EXPOSE
-→ documents the container port
-
--p
-→ actually maps host port → container port
+```bash
+docker ps -a
 ```
+
+### Purpose
+
+Shows running and stopped containers.
+
+Useful when debugging a container that exits immediately.
 
 ---
 
-### `localhost`
+## 3. Check Docker Volumes
 
-```text
-localhost
-127.0.0.1
-    ↓
-this container
+```bash
+docker volume ls
 ```
 
-To reach another Compose service:
+Expected volumes include:
 
 ```text
-service-name:port
+srcs_mariadb_data
+srcs_wordpress_data
+srcs_backup_data
+```
+
+### Purpose
+
+Confirms that persistent storage exists.
+
+---
+
+# Persistence Tests
+
+## 4. Check Persistent Data on the Host
+
+```bash
+sudo du -sh /home/reda/data/*
 ```
 
 Example:
 
 ```text
-mariadb:3306
+35M     /home/reda/data/backups
+115M    /home/reda/data/mariadb
+121M    /home/reda/data/wordpress
 ```
+
+### Purpose
+
+Confirms that important data is stored outside the containers.
 
 ---
 
-### Volume
+## 5. Stop the Containers
 
-```text
-Container
-    ↓
-Volume
-    ↓
-persistent data
+```bash
+make down
 ```
 
-Container can disappear while the data remains.
+Then:
+
+```bash
+docker ps
+```
+
+### Purpose
+
+Confirms that the containers can be removed without immediately deleting the persistent data.
 
 ---
 
-### Network
+## 6. Start Again
 
-```text
-Container ↔ Container
+```bash
+make up
 ```
 
-Allows services to communicate privately.
+Then:
+
+```bash
+docker ps
+```
+
+### Purpose
+
+Confirms that the infrastructure can be recreated using the existing persistent data.
+
+WordPress and MariaDB should keep their previous data.
 
 ---
 
-### ENTRYPOINT vs CMD
+## 7. Test WordPress Persistence
+
+Open:
 
 ```text
-ENTRYPOINT → main program
-CMD        → default arguments
+https://reda.42.fr/
 ```
+
+Then:
+
+```text
+https://reda.42.fr/wp-admin/
+```
+
+### Purpose
+
+Confirms that the WordPress installation and its database survive container recreation.
 
 ---
 
-# 31. Final Inception Mental Model
+## 8. Test MariaDB Persistence
 
-Think of the entire project like this:
+Enter the MariaDB container:
 
-```text
-                    BROWSER
-                       │
-                       │ HTTPS :443
-                       ▼
-                  ┌──────────┐
-                  │  NGINX   │
-                  └────┬─────┘
-                       │
-                  Docker network
-                       │
-                       ▼
-                ┌─────────────┐
-                │  WordPress  │
-                │  PHP-FPM    │
-                └──────┬──────┘
-                       │
-                  Docker network
-                       │
-                       ▼
-                ┌─────────────┐
-                │   MariaDB   │
-                └──────┬──────┘
-                       │
-                       ▼
-                Database volume
-
-
-          WordPress
-              │
-              ▼
-       Website volume
+```bash
+docker exec -it srcs-mariadb-1 mariadb -u root -p
 ```
 
-The core idea:
+Then:
 
-> **Images contain the environment. Containers run the services. Networks connect the containers. Volumes preserve important data. Compose describes and manages the whole system.**
->
+```sql
+SHOW DATABASES;
+```
+
+### Purpose
+
+Confirms that the WordPress database still exists after restarting the infrastructure.
+
+---
+
+# NGINX Tests
+
+## 9. Test HTTPS
+
+```bash
+curl -k -I https://reda.42.fr/
+```
+
+Expected:
+
+```text
+HTTP/1.1 200 OK
+```
+
+### Purpose
+
+Confirms that NGINX is responding through HTTPS.
+
+`-k` is used because the project uses a self-signed certificate.
+
+---
+
+## 10. Check NGINX Configuration
+
+```bash
+docker exec -it srcs-nginx-1 nginx -t
+```
+
+Expected:
+
+```text
+syntax is ok
+test is successful
+```
+
+### Purpose
+
+Checks that the NGINX configuration is valid.
+
+---
+
+# Docker Network Tests
+
+## 11. Check the Docker Network
+
+```bash
+docker network ls
+```
+
+### Purpose
+
+Confirms that the Docker network exists.
+
+---
+
+## 12. Test Container Name Resolution
+
+```bash
+docker exec -it srcs-nginx-1 getent hosts static
+```
+
+Expected output contains an IP address followed by:
+
+```text
+static
+```
+
+### Purpose
+
+Confirms that containers can find each other using Docker's internal DNS.
+
+---
+
+# Redis Tests
+
+## 13. Check Redis from WordPress
+
+```bash
+docker exec -it srcs-wordpress-1 wp redis status --path=/var/www/html --allow-root
+```
+
+The output should show that Redis is connected.
+
+### Purpose
+
+Confirms that WordPress can communicate with Redis.
+
+---
+
+## 14. Check Redis Keys
+
+```bash
+docker exec -it srcs-redis-1 redis-cli DBSIZE
+```
+
+### Purpose
+
+Confirms that Redis is actually storing cache data.
+
+---
+
+# FTP Tests
+
+## 15. Test FTP Connection
+
+Connect using an FTP client with:
+
+```text
+Host: reda.42.fr
+Port: 21
+```
+
+### Purpose
+
+Confirms that the FTP service is reachable.
+
+---
+
+## 16. Test FTP File Access
+
+Upload or create a test file through FTP.
+
+Then check the WordPress files.
+
+### Purpose
+
+Confirms that FTP and WordPress are using the same shared volume.
+
+---
+
+# Adminer Test
+
+## 17. Open Adminer
+
+Visit:
+
+```text
+https://reda.42.fr/adminer.php
+```
+
+Use:
+
+```text
+System: MySQL
+Server: mariadb
+Database: wordpress
+Username: wpuser
+Password: database password
+```
+
+### Purpose
+
+Confirms that Adminer can communicate with MariaDB through the Docker network.
+
+---
+
+# Static Portfolio Test
+
+## 18. Open the Portfolio
+
+Visit:
+
+```text
+https://reda.42.fr/portfolio/
+```
+
+Then type:
+
+```text
+help
+```
+
+### Purpose
+
+Confirms that NGINX can proxy requests to the static container.
+
+---
+
+## 19. Test Portfolio Commands
+
+Try:
+
+```text
+whoami
+portfolio
+skills
+contact
+clear
+```
+
+### Purpose
+
+Confirms that the HTML, CSS and JavaScript of the static service are working.
+
+---
+
+# Backup Tests
+
+## 20. Check Backup Files
+
+```bash
+ls -lh /home/reda/data/backups/
+```
+
+Expected:
+
+```text
+wordpress-YYYY-MM-DD_HH-MM-SS.tar.gz
+```
+
+### Purpose
+
+Confirms that the backup service is creating persistent backup files.
+
+---
+
+## 21. Inspect a Backup
+
+```bash
+tar -tzf /home/reda/data/backups/wordpress-YYYY-MM-DD_HH-MM-SS.tar.gz | head
+```
+
+Expected files include:
+
+```text
+./wp-settings.php
+./wp-blog-header.php
+./wp-cron.php
+./wp-content/
+./wp-admin/
+```
+
+### Purpose
+
+Confirms that the archive actually contains WordPress files.
+
+---
+
+# Docker Design Choices
+
+## Virtual Machines vs Docker
+
+### Virtual Machine
+
+A VM virtualizes an entire operating system.
+
+```text
+Physical machine
+      │
+      ▼
+Virtual Machine
+      │
+      └── Complete OS
+```
+
+A VM usually requires more memory and storage because each VM has its own operating system.
+
+### Docker
+
+Docker uses containers that share the host kernel.
+
+```text
+Physical machine
+      │
+      ▼
+Docker
+ ├── NGINX
+ ├── WordPress
+ ├── MariaDB
+ └── Redis
+```
+
+Containers are generally lighter and faster to create than full virtual machines.
+
+For this project, Docker makes it possible to separate each service into its own isolated container.
+
+---
+
+# Secrets vs Environment Variables
+
+## Environment Variables
+
+Environment variables are useful for configuration such as:
+
+```text
+DOMAIN_NAME=reda.42.fr
+MYSQL_DATABASE=wordpress
+MYSQL_USER=wpuser
+```
+
+They are appropriate for configuration that is not sensitive.
+
+## Docker Secrets
+
+Passwords should not be placed directly inside the Compose file.
+
+This project uses Docker secrets for:
+
+```text
+db_password
+db_root_password
+wp_admin_password
+wp_user_password
+ftp_password
+```
+
+The containers read them from:
+
+```text
+/run/secrets/
+```
+
+This separates sensitive information from normal configuration.
+
+---
+
+# Docker Network vs Host Network
+
+## Docker Network
+
+Containers communicate through a private Docker network.
+
+For example:
+
+```text
+wordpress → mariadb:3306
+wordpress → redis:6379
+nginx → wordpress:9000
+```
+
+The containers can use service names instead of manually configured IP addresses.
+
+## Host Network
+
+With host networking, a container uses the host's network directly.
+
+This provides less network isolation and is unnecessary for this project.
+
+The project therefore uses a Docker network.
+
+---
+
+# Docker Volumes vs Bind Mounts
+
+## Docker Volume
+
+A Docker volume is managed by Docker.
+
+Example:
+
+```text
+wordpress_data
+```
+
+The container can use it for persistent storage.
+
+## Bind Mount
+
+A bind mount connects a Docker volume to a specific directory on the host.
+
+This project uses bind-backed volumes such as:
+
+```text
+/home/reda/data/mariadb
+/home/reda/data/wordpress
+/home/reda/data/backups
+```
+
+This makes the persistent data easy to inspect and preserve outside the project directory.
+
+---
+
+# Technical Choices
+
+### Why separate containers?
+
+Each major service has its own container:
+
+```text
+NGINX
+WordPress
+MariaDB
+Redis
+FTP
+Adminer
+Static
+Backup
+```
+
+This keeps the services separated and makes them easier to build, restart and debug.
+
+### Why NGINX as the public entry point?
+
+Only NGINX needs to receive HTTP/HTTPS traffic from outside.
+
+The other services remain inside the Docker infrastructure.
+
+### Why PHP-FPM?
+
+WordPress requires PHP to execute its PHP files.
+
+PHP-FPM allows NGINX to send PHP requests to the WordPress container.
+
+### Why Redis?
+
+Redis provides object caching for WordPress and reduces repeated database work.
+
+### Why persistent volumes?
+
+Containers can be removed and recreated. Persistent volumes keep important data such as:
+
+* MariaDB databases
+* WordPress files
+* Backup archives
+
+---
+
+# Resources
+
+## Docker
+
+* Docker documentation:
+  [https://docs.docker.com/](https://docs.docker.com/)
+* Docker Compose documentation:
+  [https://docs.docker.com/compose/](https://docs.docker.com/compose/)
+* Docker volumes:
+  [https://docs.docker.com/engine/storage/volumes/](https://docs.docker.com/engine/storage/volumes/)
+* Docker networking:
+  [https://docs.docker.com/engine/network/](https://docs.docker.com/engine/network/)
+* Docker secrets:
+  [https://docs.docker.com/engine/swarm/secrets/](https://docs.docker.com/engine/swarm/secrets/)
+* Understanding Docker
+  [https://youtu.be/DQdB7wFEygo?si=cm4WkB31RRZ9G9i_](https://youtu.be/DQdB7wFEygo?si=cm4WkB31RRZ9G9i_)
+
+## NGINX
+
+* NGINX documentation:
+  [https://nginx.org/en/docs/](https://nginx.org/en/docs/)
+* Understanding NGINX:
+  [https://www.youtube.com/watch?v=iInUBOVeBCc](https://www.youtube.com/watch?v=iInUBOVeBCc)
+
+## WordPress
+
+* WordPress documentation:
+  [https://wordpress.org/documentation/](https://wordpress.org/documentation/)
+* WP-CLI documentation:
+  [https://developer.wordpress.org/cli/commands/](https://developer.wordpress.org/cli/commands/)
+
+## MariaDB
+
+* MariaDB documentation:
+  [https://mariadb.com/docs/](https://mariadb.com/docs/)
+* MariaDB explanation:
+  [https://www.youtube.com/watch?v=ty8mi76UOks](https://www.youtube.com/watch?v=ty8mi76UOks)
+
+## Redis
+
+* Redis documentation:
+  [https://redis.io/docs/](https://redis.io/docs/)
+* Redis in 100 sec:
+  [https://www.youtube.com/watch?v=G1rOthIU-uo](https://www.youtube.com/watch?v=G1rOthIU-uo)
+* Redis explanation:
+  [https://www.youtube.com/watch?v=8A_iNFRP0F4](https://www.youtube.com/watch?v=8A_iNFRP0F4)
+
+## Adminer
+
+* Adminer:
+  [https://www.adminer.org/](https://www.adminer.org/)
+
+## FTP
+
+* vsftpd documentation:
+  [https://security.appspot.com/vsftpd.html](https://security.appspot.com/vsftpd.html)
+* man ftp 😄
+
+---
+
+# AI Usage
+
+AI was used as a learning and development assistant during this project.
+
+It was mainly used for:
+
+* Understanding Docker and Docker Compose concepts.
+* Understanding the difference between images and containers.
+* Understanding Docker volumes and bind mounts.
+* Understanding Docker networks.
+* Debugging Docker Compose configuration.
+* Debugging NGINX configuration.
+* Understanding PHP-FPM and the connection between NGINX and WordPress.
+* Debugging MariaDB initialization and user permissions.
+* Understanding WordPress and WP-CLI setup.
+* Explaining FTP configuration.
+* Creating the static portfolio structure.
+* Suggesting testing commands and explaining what each test verifies.
+
+AI was not used as a replacement for understanding the project. The configurations and commands were tested manually, and errors were investigated during development.
+
+---
+
+# Final Notes
+
+The project is designed to be reproducible with Docker Compose.
+
+Persistent data is stored separately from the project:
+
+```text
+/home/reda/data/mariadb
+/home/reda/data/wordpress
+/home/reda/data/backups
+```
+
+Sensitive files are stored locally in:
+
+```text
+secrets/
+```
+
+and should not be committed to the Git repository.
