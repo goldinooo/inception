@@ -48,6 +48,42 @@ services :
       networks:
         - inception
 
+    ftp:
+      image: inception-ftp:1.0
+      restart: on-failure
+      build: ./requirements/bonus/ftp
+      secrets:
+        - ftp_password
+      volumes:
+        - wordpress_data:/var/www/html
+      ports:
+        - "21:21"
+        - "21100-21110:21100-21110"
+      networks:
+        - inception
+
+    adminer:
+      image: inception-adminer:1.0
+      restart: on-failure
+      build: ./requirements/bonus/adminer
+      networks:
+        - inception
+
+    static:
+      image: inception-static:1.0
+      restart: on-failure
+      build: ./requirements/bonus/static
+      networks:
+          - inception
+
+    backup:
+      image: inception-backup:1.0
+      restart: on-failure
+      build: ./requirements/bonus/backup
+      volumes:
+          - wordpress_data:/var/www/html:ro
+          - backup_data:/backup
+
 volumes:
     mariadb_data:
       driver: local
@@ -55,12 +91,20 @@ volumes:
         type: none
         o: bind
         device: /home/reda/data/mariadb
+
     wordpress_data:
       driver: local
       driver_opts:
         type: none
         o: bind
         device: /home/reda/data/wordpress
+
+    backup_data:
+      driver: local
+      driver_opts:
+          type: none
+          o: bind
+          device: /home/reda/data/backups
 
 secrets:
     db_password:
@@ -74,6 +118,9 @@ secrets:
 
     wp_user_password:
       file: ../secrets/wp_user_password.txt
+
+    ftp_password:
+      file: ../secrets/ftp_password.txt
 
 networks:
     inception:

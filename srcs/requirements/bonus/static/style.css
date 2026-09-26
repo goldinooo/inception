@@ -1,0 +1,46 @@
+body {
+    background: #0d1117;
+    color: #00ff66;
+    font-family: monospace;
+    margin: 0;
+    padding: 40px;
+}
+
+.terminal {
+    max-width: 900px;
+    margin: auto;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 8px;
+    padding: 25px;
+    min-height: 500px;
+}
+
+.header {
+    color: #58a6ff;
+    margin-bottom: 30px;
+}
+
+#output {
+    color: #c9d1d9;
+}
+
+.input-line {
+    display: flex;
+    margin-top: 20px;
+}
+
+.input-line span {
+    color: #00ff66;
+}
+
+input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #ffffff;
+    font-family: monospace;
+    font-size: 16px;
+    margin-left: 8px;
+    flex: 1;
+}
